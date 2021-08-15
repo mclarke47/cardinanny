@@ -1,4 +1,4 @@
-# Cardinanny
+# Cardinanny
 
 A cardinailty nanny for Promtheus.
 
