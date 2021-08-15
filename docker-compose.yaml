@@ -1,0 +1,13 @@
+version: '3.7'
+services:
+    prometheus:
+      image: prom/prometheus
+      volumes:
+        - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      command:
+        - '--config.file=/etc/prometheus/prometheus.yml'
+        - '--storage.tsdb.path=/prometheus'
+        - '--web.enable-lifecycle'
+        - '--web.enable-admin-api'
+      ports:
+        - 9090:9090
