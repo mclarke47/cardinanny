@@ -3,14 +3,15 @@ package pkg
 import (
 	"context"
 	"fmt"
-	"log"
 	"time"
 
 	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
 	"github.com/prometheus/common/model"
+	"go.uber.org/zap"
 )
 
 type CardinalityScanner struct {
+	Logger  *zap.SugaredLogger
 	PromAPI v1.API
 }
 
@@ -27,10 +28,11 @@ func (c *CardinalityScanner) Scan(ctx context.Context, labelCountLimit uint64) (
 
 	jobToLabelToDrop := map[string][]string{}
 
+	c.Logger.Debugw("tsdb result", "tsdb.LabelValueCountByLabelName", result.LabelValueCountByLabelName)
+
 	for _, lv := range result.LabelValueCountByLabelName {
 
 		if lv.Value > labelCountLimit {
-			log.Printf("High cardinality label found key=%s value=%d", lv.Name, lv.Value)
 
 			r, _, err := c.PromAPI.Query(ctx, queryByJob(lv.Name), time.Now())
 			if err != nil {
@@ -39,10 +41,11 @@ func (c *CardinalityScanner) Scan(ctx context.Context, labelCountLimit uint64) (
 
 			if r.Type() == model.ValVector {
 				vec := r.(model.Vector)
+
+				c.Logger.Debugw("vector found", "vec", vec)
+
 				for _, v := range vec {
 					if job, ok := v.Metric["job"]; ok {
-						log.Printf("Found bad label %s in job %s\n", lv.Name, job)
-
 						j := string(job)
 
 						if labels, ok := jobToLabelToDrop[j]; ok {

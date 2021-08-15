@@ -4,15 +4,20 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	"net/http"
 
 	plog "github.com/go-kit/log"
 	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
 	"github.com/prometheus/prometheus/config"
 	"github.com/prometheus/prometheus/pkg/relabel"
+	"go.uber.org/zap"
 )
 
 type PromConfigRewriter struct {
-	PromAPI v1.API
+	Logger     *zap.SugaredLogger
+	PromAPI    v1.API
+	HTTPClient *http.Client
+	BaseURL    string
 }
 
 func toRegexMap(jobNamesToLabelsToDrop map[string][]string) map[string]string {
@@ -71,5 +76,25 @@ func (p *PromConfigRewriter) DropLabelsInJobs(ctx context.Context, jobNamesToLab
 	if err != nil {
 		return err
 	}
+
+	p.Logger.Debug("Config file generated")
+
+	resp, err := p.HTTPClient.Post(fmt.Sprintf("%s/-/reload", p.BaseURL), "", nil)
+
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode != 200 {
+		defer resp.Body.Close()
+		b, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("error when reloading prometheus config, expected status code 200 but was %d, body was unreadable", resp.StatusCode)
+		}
+		return fmt.Errorf("error when reloading prometheus config, expected status code 200 but was %d, body: %s", resp.StatusCode, b)
+	}
+
+	p.Logger.Debug("Prom config reloaded")
+
 	return nil
 }

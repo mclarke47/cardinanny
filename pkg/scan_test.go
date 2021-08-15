@@ -11,6 +11,7 @@ import (
 	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
 )
 
 func Test_CardinalityScanner_scanEmptyLabelValueCountByLabelName(t *testing.T) {
@@ -136,6 +137,7 @@ func Test_CardinalityScanner_scanOneValueOverLimitNoJobLabel(t *testing.T) {
 
 	scanner := CardinalityScanner{
 		PromAPI: m,
+		Logger:  zap.NewNop().Sugar(),
 	}
 
 	result, err := scanner.Scan(context.Background(), 50)
@@ -157,6 +159,7 @@ func Test_CardinalityScanner_scanHandleTSDBReturnsError(t *testing.T) {
 
 	scanner := CardinalityScanner{
 		PromAPI: m,
+		Logger:  zap.NewNop().Sugar(),
 	}
 
 	result, err := scanner.Scan(context.Background(), 50)
@@ -200,6 +203,7 @@ func Test_CardinalityScanner_scanHandleQueryReturnsError(t *testing.T) {
 
 	scanner := CardinalityScanner{
 		PromAPI: m,
+		Logger:  zap.NewNop().Sugar(),
 	}
 
 	result, err := scanner.Scan(context.Background(), 50)
@@ -238,6 +242,7 @@ func runTest(t *testing.T, labelValueCountByLabelName []v1.Stat, expectedResult 
 
 	scanner := CardinalityScanner{
 		PromAPI: m,
+		Logger:  zap.NewNop().Sugar(),
 	}
 
 	result, err := scanner.Scan(context.Background(), 50)

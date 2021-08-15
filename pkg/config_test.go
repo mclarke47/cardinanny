@@ -6,12 +6,15 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/golang/mock/gomock"
 	"github.com/mclarke47/cardinanny/mock_v1"
 	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
 )
 
 func yamlFixture(t *testing.T, file string) string {
@@ -29,6 +32,7 @@ func TestConfigWriter_emptymap(t *testing.T) {
 
 	writer := PromConfigRewriter{
 		PromAPI: m,
+		Logger:  zap.NewNop().Sugar(),
 	}
 
 	emptyMap := map[string][]string{}
@@ -51,6 +55,7 @@ func TestConfigWriter_promAPIReturnsError(t *testing.T) {
 
 	writer := PromConfigRewriter{
 		PromAPI: m,
+		Logger:  zap.NewNop().Sugar(),
 	}
 
 	oneValue := map[string][]string{
@@ -80,6 +85,7 @@ func TestConfigWriter_cantWriteOutNewConfigFile(t *testing.T) {
 
 	writer := PromConfigRewriter{
 		PromAPI: m,
+		Logger:  zap.NewNop().Sugar(),
 	}
 
 	oneValue := map[string][]string{
@@ -107,6 +113,7 @@ func TestConfigWriter_promConfigParseReturnsError(t *testing.T) {
 
 	writer := PromConfigRewriter{
 		PromAPI: m,
+		Logger:  zap.NewNop().Sugar(),
 	}
 
 	oneValue := map[string][]string{
@@ -132,6 +139,7 @@ func TestConfigWriter_ValuesToDropButNoConfigFile(t *testing.T) {
 
 	writer := PromConfigRewriter{
 		PromAPI: m,
+		Logger:  zap.NewNop().Sugar(),
 	}
 
 	oneValue := map[string][]string{
@@ -178,7 +186,50 @@ func TestConfigWriter_twoLabelsInTwoJobsToDrop(t *testing.T) {
 	)
 }
 
-func testLabelDropping(t *testing.T, inputYamlFixturePath string, expectedYamlFixturePath string, jobsToLabels map[string][]string) {
+func TestConfigWriter_reloadReturnsError(t *testing.T) {
+	testLabelDroppingWithReloadFunc(
+		t,
+		"./fixtures/2-scrape-jobs.yaml",
+		"./fixtures/2-scrape-jobs-expected-1-label.yaml",
+		map[string][]string{
+			"some-job": {"somevalue"},
+		},
+		func(rw http.ResponseWriter, r *http.Request) {
+			rw.WriteHeader(http.StatusInternalServerError)
+			rw.Write([]byte("Some body"))
+		},
+		func(err error) {
+			assert.Equal(t, "error when reloading prometheus config, expected status code 200 but was 500, body: Some body", err.Error())
+		},
+	)
+}
+
+func testLabelDropping(
+	t *testing.T,
+	inputYamlFixturePath string,
+	expectedYamlFixturePath string,
+	jobsToLabels map[string][]string) {
+
+	testLabelDroppingWithReloadFunc(
+		t, inputYamlFixturePath, expectedYamlFixturePath, jobsToLabels, func(rw http.ResponseWriter, r *http.Request) {
+			rw.WriteHeader(http.StatusOK)
+		},
+		func(err error) {
+			assert.Nil(t, err)
+		},
+	)
+}
+
+func testLabelDroppingWithReloadFunc(
+	t *testing.T,
+	inputYamlFixturePath string,
+	expectedYamlFixturePath string,
+	jobsToLabels map[string][]string,
+	reload http.HandlerFunc,
+	resultHandler func(error)) {
+
+	ts := httptest.NewServer(http.HandlerFunc(reload))
+	defer ts.Close()
 
 	tempFile, err := ioutil.TempFile("", fmt.Sprintf("%s.yaml", t.Name()))
 	assert.Nil(t, err)
@@ -197,12 +248,13 @@ func testLabelDropping(t *testing.T, inputYamlFixturePath string, expectedYamlFi
 		MaxTimes(1)
 
 	writer := PromConfigRewriter{
-		PromAPI: m,
+		PromAPI:    m,
+		HTTPClient: ts.Client(),
+		BaseURL:    ts.URL,
+		Logger:     zap.NewNop().Sugar(),
 	}
 
-	err = writer.DropLabelsInJobs(context.Background(), jobsToLabels, tempFile.Name())
-
-	assert.Nil(t, err)
+	resultHandler(writer.DropLabelsInJobs(context.Background(), jobsToLabels, tempFile.Name()))
 
 	assertConfigFilesAreEqual(t, expectedYamlFixturePath, tempFile)
 }
