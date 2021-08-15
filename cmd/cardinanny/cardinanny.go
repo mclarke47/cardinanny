@@ -24,13 +24,13 @@ type CardiNanny struct {
 	PromConfigRewriter pkg.PromConfigRewriter
 	PromContext        PromContext
 	PromCleaner        pkg.PromCleaner
-	Summary	 map[string][]string
+	Summary            map[string][]string
 }
 
 func newCardiNanny(api v1.API, pathToConfigFile, baseURL string, logger *zap.SugaredLogger) *CardiNanny {
 	return &CardiNanny{
 		Summary: map[string][]string{},
-		Logger: logger,
+		Logger:  logger,
 		CardinalityScanner: pkg.CardinalityScanner{
 			Logger:  logger,
 			PromAPI: api,
