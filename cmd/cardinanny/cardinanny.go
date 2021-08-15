@@ -24,10 +24,12 @@ type CardiNanny struct {
 	PromConfigRewriter pkg.PromConfigRewriter
 	PromContext        PromContext
 	PromCleaner        pkg.PromCleaner
+	Summary	 map[string][]string
 }
 
 func newCardiNanny(api v1.API, pathToConfigFile, baseURL string, logger *zap.SugaredLogger) *CardiNanny {
 	return &CardiNanny{
+		Summary: map[string][]string{},
 		Logger: logger,
 		CardinalityScanner: pkg.CardinalityScanner{
 			Logger:  logger,
@@ -63,6 +65,16 @@ func (c *CardiNanny) Start() {
 	}
 }
 
+func (c *CardiNanny) addToSummary(jobNamesToLabelsToDrop map[string][]string) {
+	for k, v := range jobNamesToLabelsToDrop {
+		if oldVal, ok := c.Summary[k]; ok {
+			c.Summary[k] = append(oldVal, v...)
+		} else {
+			c.Summary[k] = v
+		}
+	}
+}
+
 func (c *CardiNanny) ScanForHighLabelCardinality(ctx context.Context) {
 	c.Logger.Infow("starting cardinality scan", "limit", 100)
 	jobToLabelToDrop, err := c.CardinalityScanner.Scan(ctx, 100)
@@ -83,6 +95,7 @@ func (c *CardiNanny) ScanForHighLabelCardinality(ctx context.Context) {
 		c.Logger.Error("Error when updating prometheus config", err)
 		return
 	}
+	c.addToSummary(jobToLabelToDrop)
 
 	// TODO pass job to delete series to ensure we are dropping the right data
 	var labelsToDrop []string
@@ -130,12 +143,17 @@ func main() {
 		"prometheusBaseURL", baseURL,
 	)
 
-	cardinanny.Start()
+	go cardinanny.Start()
 
 	r := gin.Default()
 	r.GET("/ping", func(c *gin.Context) {
 		c.JSON(200, gin.H{
 			"message": "pong",
+		})
+	})
+	r.GET("/summary", func(c *gin.Context) {
+		c.JSON(200, gin.H{
+			"summary": cardinanny.Summary,
 		})
 	})
 	r.Run() // listen and serve on 0.0.0.0:8080
