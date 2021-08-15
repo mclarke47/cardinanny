@@ -85,7 +85,7 @@ func (mr *MockAPIMockRecorder) Buildinfo(ctx interface{}) *gomock.Call {
 }
 
 // CleanTombstones mocks base method.
-func (m MockAPI) CleanTombstones(ctx context.Context) error {
+func (m *MockAPI) CleanTombstones(ctx context.Context) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CleanTombstones", ctx)
 	ret0, _ := ret[0].(error)
@@ -114,7 +114,7 @@ func (mr *MockAPIMockRecorder) Config(ctx interface{}) *gomock.Call {
 }
 
 // DeleteSeries mocks base method.
-func (m MockAPI) DeleteSeries(ctx context.Context, matches []string, startTime, endTime time.Time) error {
+func (m *MockAPI) DeleteSeries(ctx context.Context, matches []string, startTime, endTime time.Time) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteSeries", ctx, matches, startTime, endTime)
 	ret0, _ := ret[0].(error)

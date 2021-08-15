@@ -42,7 +42,10 @@ func newCardiNanny(api v1.API, pathToConfigFile, baseURL string, logger *zap.Sug
 		PromContext: PromContext{
 			PathToConfigFile: pathToConfigFile,
 		},
-		PromCleaner: pkg.PromCleaner{},
+		PromCleaner: pkg.PromCleaner{
+			Logger:  logger,
+			PromAPI: api,
+		},
 	}
 }
 
@@ -80,10 +83,19 @@ func (c *CardiNanny) ScanForHighLabelCardinality(ctx context.Context) {
 		c.Logger.Error("Error when updating prometheus config", err)
 		return
 	}
-	err = c.PromCleaner.Clean("")
+
+	// TODO pass job to delete series to ensure we are dropping the right data
+	var labelsToDrop []string
+
+	for _, v := range jobToLabelToDrop {
+		labelsToDrop = append(labelsToDrop, v...)
+	}
+
+	err = c.PromCleaner.Clean(ctx, labelsToDrop)
 	if err != nil {
 		c.Logger.Error("Error when cleaning high cardinality data", err)
 	}
+	c.Logger.Info("Cardinality averted")
 
 }
 

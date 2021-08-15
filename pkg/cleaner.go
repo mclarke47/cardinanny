@@ -1,38 +1,41 @@
 package pkg
 
-import "fmt"
+import (
+	"context"
+	"fmt"
+	"time"
+
+	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
+	"go.uber.org/zap"
+)
 
 type PromCleaner struct {
+	Logger  *zap.SugaredLogger
+	PromAPI v1.API
 }
 
 func query(labelName string) string {
 	return fmt.Sprintf("{%s=~\".+\"}", labelName)
 }
 
-func (p *PromCleaner) Clean(labelsToDrop string) error {
+func (p *PromCleaner) Clean(ctx context.Context, labelsToDrop []string) error {
 
-	// for _, labels := range jobToLabelToDrop {
-	// 	for _, v := range labels {
-	// 		err = v1api.DeleteSeries(context.Background(), []string{query(v)}, time.Now().Add(-time.Hour), time.Now())
+	var seriesToDrop []string
 
-	// 		if err != nil {
-	// 			log.Fatal(err)
-	// 		}
-	// 		if resp.StatusCode != 200 {
-	// 			defer resp.Body.Close()
-	// 			b, err := ioutil.ReadAll(resp.Body)
-	// 			if err != nil {
-	// 				log.Fatal(err)
-	// 			}
-	// 			log.Fatalf("Expected status code 200 but was %d, body: %s", resp.StatusCode, b)
-	// 		}
-	// 	}
+	for _, l := range labelsToDrop {
+		seriesToDrop = append(seriesToDrop, query(l))
+	}
 
-	// }
+	p.Logger.Debugw("deleting series", "series", seriesToDrop)
 
-	// err = v1api.CleanTombstones(context.Background())
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
+	err := p.PromAPI.DeleteSeries(ctx, seriesToDrop, time.Now().Add(-time.Hour), time.Now())
+	if err != nil {
+		return fmt.Errorf("error while deleting label data %v for query %v, error %v", labelsToDrop, seriesToDrop, err)
+	}
+
+	err = p.PromAPI.CleanTombstones(ctx)
+	if err != nil {
+		return fmt.Errorf("error while cleaning tombstones for label data %v, error %v", labelsToDrop, err)
+	}
 	return nil
 }
