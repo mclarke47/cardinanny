@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"log"
 	"net/http"
 	"time"
@@ -114,6 +115,11 @@ func (c *CardiNanny) ScanForHighLabelCardinality(ctx context.Context) {
 
 func main() {
 
+	promFilePath := flag.String("prometheusConfigFile", "./prometheus.yml", "path to the prometheus config file")
+	promBaseURL := flag.String("prometheusBaseURL", "http://localhost:9090", "the base URL to use to connect to prometheus")
+
+	flag.Parse()
+
 	logger, err := zap.NewDevelopment()
 	if err != nil {
 		log.Fatal(err)
@@ -122,10 +128,8 @@ func main() {
 	defer logger.Sync() // flushes buffer, if any
 	sugar := logger.Sugar()
 
-	baseURL := "http://localhost:9090"
-
 	client, err := api.NewClient(api.Config{
-		Address: baseURL,
+		Address: *promBaseURL,
 	})
 
 	if err != nil {
@@ -134,13 +138,11 @@ func main() {
 
 	v1api := v1.NewAPI(client)
 
-	configPath := "./prometheus.yml"
-
-	cardinanny := newCardiNanny(v1api, configPath, baseURL, sugar)
+	cardinanny := newCardiNanny(v1api, *promFilePath, *promBaseURL, sugar)
 
 	sugar.Infow("starting Cardinanny with",
-		"configPath", configPath,
-		"prometheusBaseURL", baseURL,
+		"configPath", promFilePath,
+		"prometheusBaseURL", promBaseURL,
 	)
 
 	go cardinanny.Start()
