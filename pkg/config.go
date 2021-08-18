@@ -40,26 +40,20 @@ func toRegexMap(jobNamesToLabelsToDrop map[string][]string) map[string]string {
 	return result
 }
 
-func (p *PromConfigRewriter) DropLabelsInJobs(ctx context.Context, jobNamesToLabelsToDrop map[string][]string, configPath string) error {
-
-	if len(jobNamesToLabelsToDrop) == 0 {
-		return nil
-	}
-
+func (p *PromConfigRewriter) getConfigFile(ctx context.Context) (*config.Config, error) {
 	c, err := p.PromAPI.Config(ctx)
 	if err != nil {
-		return fmt.Errorf("error retrieving the latest config from the promtheus API, %w", err)
+		return nil, fmt.Errorf("error retrieving the latest config from the promtheus API, %w", err)
 	}
 
 	var cfgFile *config.Config
 	if cfgFile, err = config.Load(c.YAML, false, plog.NewNopLogger()); err != nil {
-		return err
+		return nil, err
 	}
+	return cfgFile, nil
+}
 
-	if len(cfgFile.ScrapeConfigs) == 0 {
-		return fmt.Errorf("had labels to drop %v, but no scrapeConfigs in config file at %s", jobNamesToLabelsToDrop, configPath)
-	}
-
+func generateNewConfigFile(jobNamesToLabelsToDrop map[string][]string, cfgFile config.Config, configPath string) error {
 	jobNamesToLabelDropRegex := toRegexMap(jobNamesToLabelsToDrop)
 
 	for _, sc := range cfgFile.ScrapeConfigs {
@@ -72,15 +66,12 @@ func (p *PromConfigRewriter) DropLabelsInJobs(ctx context.Context, jobNamesToLab
 			})
 		}
 	}
-	err = ioutil.WriteFile(configPath, []byte(cfgFile.String()), 0644)
-	if err != nil {
-		return err
-	}
+	return ioutil.WriteFile(configPath, []byte(cfgFile.String()), 0644)
+}
 
-	p.Logger.Debug("Config file generated")
+func (p *PromConfigRewriter) reloadConfig(ctx context.Context) error {
 
 	resp, err := p.HTTPClient.Post(fmt.Sprintf("%s/-/reload", p.BaseURL), "", nil)
-
 	if err != nil {
 		return err
 	}
@@ -92,6 +83,36 @@ func (p *PromConfigRewriter) DropLabelsInJobs(ctx context.Context, jobNamesToLab
 			return fmt.Errorf("error when reloading prometheus config, expected status code 200 but was %d, body was unreadable", resp.StatusCode)
 		}
 		return fmt.Errorf("error when reloading prometheus config, expected status code 200 but was %d, body: %s", resp.StatusCode, b)
+	}
+
+	return nil
+}
+
+func (p *PromConfigRewriter) DropLabelsInJobs(ctx context.Context, jobNamesToLabelsToDrop map[string][]string, configPath string) error {
+
+	if len(jobNamesToLabelsToDrop) == 0 {
+		return nil
+	}
+
+	cfgFile, err := p.getConfigFile(ctx)
+	if err != nil {
+		return err
+	}
+
+	if len(cfgFile.ScrapeConfigs) == 0 {
+		return fmt.Errorf("had labels to drop %v, but no scrapeConfigs in config file at %s", jobNamesToLabelsToDrop, configPath)
+	}
+
+	err = generateNewConfigFile(jobNamesToLabelsToDrop, *cfgFile, configPath)
+	if err != nil {
+		return err
+	}
+
+	p.Logger.Debug("Config file generated")
+
+	err = p.reloadConfig(ctx)
+	if err != nil {
+		return err
 	}
 
 	p.Logger.Debug("Prom config reloaded")

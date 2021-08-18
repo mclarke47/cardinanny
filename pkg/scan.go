@@ -11,15 +11,16 @@ import (
 )
 
 type CardinalityScanner struct {
-	Logger  *zap.SugaredLogger
-	PromAPI v1.API
+	Logger          *zap.SugaredLogger
+	PromAPI         v1.API
+	LabelCountLimit uint64
 }
 
 func queryByJob(labelName string) string {
 	return fmt.Sprintf("sum({%s=~\".+\"}) by (job)", labelName)
 }
 
-func (c *CardinalityScanner) Scan(ctx context.Context, labelCountLimit uint64) (map[string][]string, error) {
+func (c *CardinalityScanner) Scan(ctx context.Context) (map[string][]string, error) {
 
 	result, err := c.PromAPI.TSDB(ctx)
 	if err != nil {
@@ -32,7 +33,7 @@ func (c *CardinalityScanner) Scan(ctx context.Context, labelCountLimit uint64) (
 
 	for _, lv := range result.LabelValueCountByLabelName {
 
-		if lv.Value > labelCountLimit {
+		if lv.Value > c.LabelCountLimit {
 
 			r, _, err := c.PromAPI.Query(ctx, queryByJob(lv.Name), time.Now())
 			if err != nil {

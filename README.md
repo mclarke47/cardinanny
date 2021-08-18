@@ -19,4 +19,4 @@ Open 3 terminals (sorry):
 
 1. Run `docker compose up` to start prometheus
 2. Run `go run cmd/cardinality-injector/inject-cardinality.go` to inject some cardinality into prometheus
-3. Run `go run cmd/cardinanny/cardinanny.go` to start cardinanny
+3. Run `go run cmd/cardinanny/cardinanny.go -cardinalityLabelLimit=200` to start cardinanny

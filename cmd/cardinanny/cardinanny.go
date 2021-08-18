@@ -28,13 +28,14 @@ type CardiNanny struct {
 	Summary            map[string][]string
 }
 
-func newCardiNanny(api v1.API, pathToConfigFile, baseURL string, logger *zap.SugaredLogger) *CardiNanny {
+func newCardiNanny(api v1.API, pathToConfigFile, baseURL string, logger *zap.SugaredLogger, labelLimit uint64) *CardiNanny {
 	return &CardiNanny{
 		Summary: map[string][]string{},
 		Logger:  logger,
 		CardinalityScanner: pkg.CardinalityScanner{
-			Logger:  logger,
-			PromAPI: api,
+			Logger:          logger,
+			PromAPI:         api,
+			LabelCountLimit: labelLimit,
 		},
 		PromConfigRewriter: pkg.PromConfigRewriter{
 			Logger:     logger,
@@ -77,8 +78,8 @@ func (c *CardiNanny) addToSummary(jobNamesToLabelsToDrop map[string][]string) {
 }
 
 func (c *CardiNanny) ScanForHighLabelCardinality(ctx context.Context) {
-	c.Logger.Infow("starting cardinality scan", "limit", 100)
-	jobToLabelToDrop, err := c.CardinalityScanner.Scan(ctx, 100)
+	c.Logger.Infow("starting cardinality scan", "limit", c.CardinalityScanner.LabelCountLimit)
+	jobToLabelToDrop, err := c.CardinalityScanner.Scan(ctx)
 	if err != nil {
 		c.Logger.Error("Error when scanning", err)
 		return
@@ -117,6 +118,7 @@ func main() {
 
 	promFilePath := flag.String("prometheusConfigFile", "./prometheus.yml", "path to the prometheus config file")
 	promBaseURL := flag.String("prometheusBaseURL", "http://localhost:9090", "the base URL to use to connect to prometheus")
+	labelLimit := flag.Int("cardinalityLabelLimit", 1000000, "the mac number of values a label can have")
 
 	flag.Parse()
 
@@ -138,11 +140,12 @@ func main() {
 
 	v1api := v1.NewAPI(client)
 
-	cardinanny := newCardiNanny(v1api, *promFilePath, *promBaseURL, sugar)
+	cardinanny := newCardiNanny(v1api, *promFilePath, *promBaseURL, sugar, uint64(*labelLimit))
 
 	sugar.Infow("starting Cardinanny with",
 		"configPath", promFilePath,
 		"prometheusBaseURL", promBaseURL,
+		"cardinalityLabelLimit", labelLimit,
 	)
 
 	go cardinanny.Start()

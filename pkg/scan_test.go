@@ -136,11 +136,12 @@ func Test_CardinalityScanner_scanOneValueOverLimitNoJobLabel(t *testing.T) {
 		MaxTimes(1)
 
 	scanner := CardinalityScanner{
-		PromAPI: m,
-		Logger:  zap.NewNop().Sugar(),
+		PromAPI:         m,
+		Logger:          zap.NewNop().Sugar(),
+		LabelCountLimit: 50,
 	}
 
-	result, err := scanner.Scan(context.Background(), 50)
+	result, err := scanner.Scan(context.Background())
 	assert.Nil(t, err)
 	assert.Equal(t, map[string][]string{}, result)
 }
@@ -158,11 +159,12 @@ func Test_CardinalityScanner_scanHandleTSDBReturnsError(t *testing.T) {
 		MaxTimes(1)
 
 	scanner := CardinalityScanner{
-		PromAPI: m,
-		Logger:  zap.NewNop().Sugar(),
+		PromAPI:         m,
+		Logger:          zap.NewNop().Sugar(),
+		LabelCountLimit: 50,
 	}
 
-	result, err := scanner.Scan(context.Background(), 50)
+	result, err := scanner.Scan(context.Background())
 	assert.NotNil(t, err)
 	assert.Equal(t, "error retrieving TSDB stats from the promtheus API, some-error", err.Error())
 	assert.Nil(t, result)
@@ -202,11 +204,12 @@ func Test_CardinalityScanner_scanHandleQueryReturnsError(t *testing.T) {
 		MaxTimes(1)
 
 	scanner := CardinalityScanner{
-		PromAPI: m,
-		Logger:  zap.NewNop().Sugar(),
+		PromAPI:         m,
+		Logger:          zap.NewNop().Sugar(),
+		LabelCountLimit: 50,
 	}
 
-	result, err := scanner.Scan(context.Background(), 50)
+	result, err := scanner.Scan(context.Background())
 	assert.NotNil(t, err)
 	assert.Equal(t, "error querying the promtheus API, some-error", err.Error())
 	assert.Nil(t, result)
@@ -241,11 +244,12 @@ func runTest(t *testing.T, labelValueCountByLabelName []v1.Stat, expectedResult 
 	}
 
 	scanner := CardinalityScanner{
-		PromAPI: m,
-		Logger:  zap.NewNop().Sugar(),
+		PromAPI:         m,
+		Logger:          zap.NewNop().Sugar(),
+		LabelCountLimit: 50,
 	}
 
-	result, err := scanner.Scan(context.Background(), 50)
+	result, err := scanner.Scan(context.Background())
 	assert.Nil(t, err)
 	assert.Equal(t, expectedResult, result)
 }
